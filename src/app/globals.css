@@ -1,26 +1,82 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --canvas: #f5f7fb;
+  --surface: #ffffff;
+  --surface-muted: #f0f3f9;
+  --ink: #0b1324;
+  --ink-muted: #4a5670;
+  --ink-subtle: #6b7690;
+  --line: #e1e6ef;
+  --line-strong: #c9d1df;
+  --brand: #1f3fbf;
+  --brand-hover: #18339f;
+  --brand-soft: #e9eeff;
+  --on-brand: #ffffff;
+  --success: #12804a;
+  --success-soft: #e6f5ec;
+  --danger: #c0352b;
+  --danger-soft: #fdeceb;
+  color-scheme: light;
+}
+
+/* Dark theme applies on screen only, so printed reports stay light. */
+@media screen and (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #0a0f1c;
+    --surface: #111829;
+    --surface-muted: #172036;
+    --ink: #e8ecf5;
+    --ink-muted: #a6b0c6;
+    --ink-subtle: #8590a8;
+    --line: #232d45;
+    --line-strong: #33405e;
+    --brand: #8199ff;
+    --brand-hover: #9aaeff;
+    --brand-soft: #1a2550;
+    --on-brand: #0a0f1c;
+    --success: #4fd08a;
+    --success-soft: #0f2a1d;
+    --danger: #ff7b70;
+    --danger-soft: #2e1513;
+    color-scheme: dark;
+  }
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-soft: var(--brand-soft);
+  --color-on-brand: var(--on-brand);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background: var(--canvas);
+  color: var(--ink);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@media print {
+  html {
+    /* Keep brand fills (level badge, bars) when browsers skip backgrounds. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body {
+    background: #ffffff;
+  }
 }
