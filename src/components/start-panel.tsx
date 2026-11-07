@@ -1,27 +1,26 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState, type FormEvent } from "react";
-import { registerCandidate } from "@/app/actions";
+import { useState, type FormEvent } from "react";
 import {
   resetAssessment,
   startAssessment,
   useAssessmentSession,
 } from "@/lib/assessment-store";
-import {
-  NAME_MAX_LENGTH,
-  PHONE_MAX_LENGTH,
-  validateName,
-  validatePhone,
-} from "@/lib/validation";
 import { ArrowRightIcon, ClockIcon, RestartIcon, ShieldIcon, buttonStyles } from "./ui";
 
+const NAME_PATTERN = /^[\p{L}\p{M}][\p{L}\p{M}'’ .-]*$/u;
+
+function validateName(raw: string): string | null {
+  const name = raw.trim();
+  if (name.length === 0) return "Please enter your full name.";
+  if (name.length < 2) return "Your name must be at least 2 characters.";
+  if (name.length > 60) return "Your name must be 60 characters or fewer.";
+  if (!NAME_PATTERN.test(name)) return "Please use letters, spaces, hyphens or apostrophes only.";
+  return null;
+}
+
 const cardClass = "rounded-3xl border border-line bg-surface p-6 shadow-sm sm:p-8";
-
-const inputClass =
-  "mt-2 block w-full rounded-xl border bg-surface px-4 py-3 text-base text-ink placeholder:text-ink-subtle focus:outline-2 focus:outline-offset-0 focus:outline-brand";
-
-type RegisteredCandidate = { reference: string; name: string; phone: string; startedAt: number };
 
 export function StartPanel() {
   const session = useAssessmentSession();
@@ -30,13 +29,7 @@ export function StartPanel() {
   // showing the "in progress" card for the session that was just created.
   const [starting, setStarting] = useState(false);
 
-  function handleRegistered(candidate: RegisteredCandidate) {
-    setStarting(true);
-    startAssessment(candidate);
-    router.push("/assessment");
-  }
-
-  if (starting) return <DetailsForm locked onRegistered={() => {}} />;
+  if (starting) return <NameForm pending onStart={() => {}} />;
 
   if (session && session.completedAt !== null) {
     return (
@@ -99,77 +92,45 @@ export function StartPanel() {
     );
   }
 
-  return <DetailsForm locked={false} onRegistered={handleRegistered} />;
+  return (
+    <NameForm
+      pending={false}
+      onStart={() => {
+        setStarting(true);
+        router.push("/assessment");
+      }}
+    />
+  );
 }
 
-function DetailsForm({
-  locked,
-  onRegistered,
-}: {
-  locked: boolean;
-  onRegistered: (candidate: RegisteredCandidate) => void;
-}) {
+function NameForm({ pending, onStart }: { pending: boolean; onStart: () => void }) {
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [serverError, setServerError] = useState<string | null>(null);
-  // Set synchronously so a double click can never register the candidate twice.
-  const inFlight = useRef(false);
 
   const nameError = validateName(name);
-  const phoneError = validatePhone(phone);
   const agreeError = agreed ? null : "Please confirm before you begin.";
   const showNameError = submitted && nameError !== null;
-  const showPhoneError = submitted && phoneError !== null;
   const showAgreeError = submitted && agreeError !== null;
-  const busy = locked || saving;
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy || inFlight.current) return;
+    if (pending) return;
     setSubmitted(true);
-    setServerError(null);
-
-    const firstInvalid = nameError
-      ? "candidate-name"
-      : phoneError
-        ? "candidate-phone"
-        : agreeError
-          ? "candidate-agree"
-          : null;
-    if (firstInvalid) {
-      document.getElementById(firstInvalid)?.focus();
+    if (nameError || agreeError) {
+      const target = nameError ? "candidate-name" : "candidate-agree";
+      document.getElementById(target)?.focus();
       return;
     }
-
-    inFlight.current = true;
-    setSaving(true);
-    let registered = false;
-    try {
-      const response = await registerCandidate({ name, phone });
-      if (response.ok) {
-        registered = true;
-        onRegistered({ reference: response.reference, startedAt: response.startedAt, name, phone });
-      } else {
-        setServerError(response.error);
-      }
-    } catch {
-      setServerError("We couldn't reach the server. Check your connection and try again.");
-    } finally {
-      if (!registered) {
-        inFlight.current = false;
-        setSaving(false);
-      }
-    }
+    startAssessment(name);
+    onStart();
   }
 
   return (
     <form className={cardClass} onSubmit={handleSubmit} noValidate>
       <h2 className="text-2xl font-semibold tracking-tight">Begin your assessment</h2>
       <p className="mt-2 text-ink-muted">
-        Enter your details to begin. Your name will appear on your report.
+        Enter your name as you would like it to appear on your report.
       </p>
 
       <div className="mt-6">
@@ -182,45 +143,18 @@ function DetailsForm({
           type="text"
           autoComplete="name"
           placeholder="e.g. Alex Morgan"
-          maxLength={NAME_MAX_LENGTH}
+          maxLength={60}
           value={name}
           onChange={(e) => setName(e.target.value)}
           aria-invalid={showNameError}
           aria-describedby={showNameError ? "candidate-name-error" : undefined}
-          className={`${inputClass} ${showNameError ? "border-danger" : "border-line-strong"}`}
+          className={`mt-2 block w-full rounded-xl border bg-surface px-4 py-3 text-base text-ink placeholder:text-ink-subtle focus:outline-2 focus:outline-offset-0 focus:outline-brand ${
+            showNameError ? "border-danger" : "border-line-strong"
+          }`}
         />
         {showNameError && (
           <p id="candidate-name-error" className="mt-2 text-sm text-danger">
             {nameError}
-          </p>
-        )}
-      </div>
-
-      <div className="mt-5">
-        <label htmlFor="candidate-phone" className="text-sm font-medium">
-          Phone number
-        </label>
-        <input
-          id="candidate-phone"
-          name="phone"
-          type="tel"
-          inputMode="tel"
-          autoComplete="tel"
-          placeholder="e.g. +44 7700 900123"
-          maxLength={PHONE_MAX_LENGTH}
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          aria-invalid={showPhoneError}
-          aria-describedby={showPhoneError ? "candidate-phone-error" : "candidate-phone-hint"}
-          className={`${inputClass} ${showPhoneError ? "border-danger" : "border-line-strong"}`}
-        />
-        {showPhoneError ? (
-          <p id="candidate-phone-error" className="mt-2 text-sm text-danger">
-            {phoneError}
-          </p>
-        ) : (
-          <p id="candidate-phone-hint" className="mt-2 text-sm text-ink-subtle">
-            Include your country code if you are outside your home country.
           </p>
         )}
       </div>
@@ -249,14 +183,8 @@ function DetailsForm({
         )}
       </div>
 
-      {serverError && (
-        <p role="alert" className="mt-5 rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger">
-          {serverError}
-        </p>
-      )}
-
-      <button type="submit" className={`${buttonStyles.primary} mt-6 w-full`} disabled={busy}>
-        {busy ? "Starting…" : "Start assessment"}
+      <button type="submit" className={`${buttonStyles.primary} mt-6 w-full`} disabled={pending}>
+        {pending ? "Starting…" : "Start assessment"}
         <ArrowRightIcon />
       </button>
 
@@ -267,7 +195,7 @@ function DetailsForm({
         </li>
         <li className="flex items-center gap-2">
           <ShieldIcon className="shrink-0" />
-          Your name, phone number and result are saved so we can follow up with you.
+          Your answers stay in this browser and are never uploaded.
         </li>
       </ul>
     </form>

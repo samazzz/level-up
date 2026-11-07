@@ -9,7 +9,7 @@ const FACTS = [
 ];
 
 const STEPS = [
-  { title: "Enter your details", body: "Your name and phone number. No account or email required." },
+  { title: "Enter your name", body: "So your report is personalised. No account or email required." },
   { title: "Complete four sections", body: "Answer each question by selecting the option you believe is correct." },
   { title: "Receive your report", body: "See your CEFR level, a skill-by-skill breakdown and how to improve." },
 ];
