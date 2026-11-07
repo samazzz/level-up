@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { submitResult } from "@/app/actions";
 import {
   completeAssessment,
   goToStep,
@@ -16,6 +17,10 @@ export function AssessmentRunner() {
   const session = useAssessmentSession();
   const router = useRouter();
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  // Set synchronously so a double click can never submit twice.
+  const submitInFlight = useRef(false);
 
   useEffect(() => {
     if (session === null) router.replace("/");
@@ -43,9 +48,41 @@ export function AssessmentRunner() {
     headingRef.current?.focus({ preventScroll: true });
   }
 
+  async function submit() {
+    if (!session || submitInFlight.current) return;
+    submitInFlight.current = true;
+    setSubmitting(true);
+    setSubmitError(null);
+    let saved = false;
+    try {
+      const response = await submitResult({
+        reference: session.reference,
+        name: session.name,
+        phone: session.phone,
+        startedAt: session.startedAt,
+        questionIds: session.questionIds,
+        answers: session.answers,
+      });
+      if (response.ok) {
+        saved = true;
+        // The session only counts as complete once the server has the result.
+        completeAssessment();
+      } else {
+        setSubmitError(response.error);
+      }
+    } catch {
+      setSubmitError("We couldn't reach the server. Check your connection and try again.");
+    } finally {
+      if (!saved) {
+        submitInFlight.current = false;
+        setSubmitting(false);
+      }
+    }
+  }
+
   function handleNext() {
-    if (!sectionComplete) return;
-    if (isLastStep) completeAssessment();
+    if (!sectionComplete || submitting) return;
+    if (isLastStep) void submit();
     else changeStep(step + 1);
   }
 
@@ -152,14 +189,18 @@ export function AssessmentRunner() {
             type="button"
             className={buttonStyles.secondary}
             onClick={() => changeStep(step - 1)}
-            disabled={step === 0}
+            disabled={step === 0 || submitting}
           >
             <ArrowLeftIcon />
             <span className="sr-only sm:not-sr-only">Previous</span>
           </button>
 
           <p className="text-center text-sm text-ink-muted" aria-live="polite">
-            {sectionComplete ? (
+            {submitError ? (
+              <span role="alert" className="text-danger">
+                {submitError}
+              </span>
+            ) : sectionComplete ? (
               isLastStep ? (
                 "All questions answered"
               ) : (
@@ -177,9 +218,15 @@ export function AssessmentRunner() {
             type="button"
             className={buttonStyles.primary}
             onClick={handleNext}
-            disabled={!sectionComplete}
+            disabled={!sectionComplete || submitting}
           >
-            {isLastStep ? "Submit & see results" : "Continue"}
+            {submitting
+              ? "Submitting…"
+              : isLastStep
+                ? submitError
+                  ? "Try again"
+                  : "Submit & see results"
+                : "Continue"}
             <ArrowRightIcon />
           </button>
         </div>

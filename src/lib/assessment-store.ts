@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { QUESTIONS_PER_TEST, SECTIONS, drawQuestionIds, isBankQuestion } from "./questions";
+import { normalizeName, normalizePhone } from "./validation";
 
 /**
  * Client-side store for the candidate's assessment session.
@@ -9,12 +10,13 @@ import { QUESTIONS_PER_TEST, SECTIONS, drawQuestionIds, isBankQuestion } from ".
  * site data) the app keeps working from memory for the current visit.
  */
 
-const STORAGE_KEY = "levelup:assessment:v2";
+const STORAGE_KEY = "levelup:assessment:v3";
 
 export type AssessmentSession = {
   /** Human-readable reference shown on the report, e.g. LU-261104-7KQ2. */
   reference: string;
   name: string;
+  phone: string;
   startedAt: number;
   completedAt: number | null;
   currentStep: number;
@@ -36,6 +38,7 @@ function isSession(value: unknown): value is AssessmentSession {
     typeof v.reference === "string" &&
     typeof v.name === "string" &&
     v.name.trim().length > 0 &&
+    typeof v.phone === "string" &&
     typeof v.startedAt === "number" &&
     (v.completedAt === null || typeof v.completedAt === "number") &&
     Number.isInteger(v.currentStep) &&
@@ -89,23 +92,18 @@ export function useAssessmentSession(): Snapshot | undefined {
   return useSyncExternalStore(subscribe, load, () => undefined);
 }
 
-function createReference(now: Date): string {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes = new Uint8Array(4);
-  crypto.getRandomValues(bytes);
-  const suffix = Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
-  const yy = String(now.getFullYear()).slice(-2);
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const dd = String(now.getDate()).padStart(2, "0");
-  return `LU-${yy}${mm}${dd}-${suffix}`;
-}
-
-export function startAssessment(name: string) {
-  const now = new Date();
+/** Starts a session for a candidate the server has already registered. */
+export function startAssessment(candidate: {
+  reference: string;
+  name: string;
+  phone: string;
+  startedAt: number;
+}) {
   commit({
-    reference: createReference(now),
-    name: name.trim().replace(/\s+/g, " "),
-    startedAt: now.getTime(),
+    reference: candidate.reference,
+    name: normalizeName(candidate.name),
+    phone: normalizePhone(candidate.phone),
+    startedAt: candidate.startedAt,
     completedAt: null,
     currentStep: 0,
     questionIds: drawQuestionIds(),
